@@ -9,6 +9,9 @@ import java.net.InetSocketAddress;
 import Model.Operation;
 
 public class Server {
+    // Shared global operation counter (critical resource)
+    private static int globalOperationCount = 0;
+
     public static void main(String[] args) throws Exception {
         ServerSocket serverSocket = new ServerSocket();
         InetAddress localAddr = InetAddress.getByName("0.0.0.0");
@@ -38,16 +41,18 @@ public class Server {
             try (ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
                  ObjectInputStream in = new ObjectInputStream(socket.getInputStream())) {
 
+                // Send welcome message
                 out.writeObject("Vous etes le client numero " + clientId);
                 out.flush();
 
                 Object request;
                 while ((request = in.readObject()) != null) {
                     if (!(request instanceof Operation)) {
+                        System.out.println("Requête invalide reçue du client " + clientId);
                         continue;
                     }
-                    Operation opObjet = (Operation) request;
 
+                    Operation opObjet = (Operation) request;
                     int op1 = opObjet.getOp1();
                     String operateur = opObjet.getOp();
                     int op2 = opObjet.getOp2();
@@ -68,12 +73,21 @@ public class Server {
                             continue;
                         }
                         res = op1 / op2;
+                    } else {
+                        out.writeObject("Erreur: Opérateur inconnu");
+                        out.flush();
+                        continue;
+                    }
+
+                    // Synchronized block to protect the critical shared resource against race conditions
+                    synchronized (Server.class) {
+                        globalOperationCount++;
+                        System.out.println("--> Compteur global des opérations traitées : " + globalOperationCount);
                     }
 
                     out.writeObject(res);
                     out.flush();
                 }
-                System.out.println("Le client numero " + clientId + " a demandé à se déconnecter");
             } catch (Exception e) {
                 System.out.println("Erreur avec le client numero " + clientId + " : " + e.getMessage());
             } finally {
@@ -83,4 +97,4 @@ public class Server {
             }
         }
     }
-}
+}a
